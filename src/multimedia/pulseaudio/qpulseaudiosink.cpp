@@ -330,7 +330,7 @@ void QPulseAudioSinkStream::writeCallbackAudioCallback(size_t requestedBytes)
         qCWarning(qLcPulseAudioOut)
                 << "pa_stream_begin_write error:" << currentError(pulseEngine->context());
 
-        invokeOnAppThread([this] {
+        QMetaObject::invokeMethod(m_parent, [this] {
             handleIOError(m_parent);
         });
     }
@@ -343,7 +343,7 @@ void QPulseAudioSinkStream::writeCallbackAudioCallback(size_t requestedBytes)
         qCWarning(qLcPulseAudioOut)
                 << "pa_stream_begin_write error:" << currentError(pulseEngine->context());
 
-        invokeOnAppThread([this] {
+        QMetaObject::invokeMethod(m_parent, [this] {
             handleIOError(m_parent);
         });
     }

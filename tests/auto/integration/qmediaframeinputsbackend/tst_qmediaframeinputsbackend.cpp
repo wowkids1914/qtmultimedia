@@ -3,7 +3,7 @@
 
 #include "tst_qmediaframeinputsbackend.h"
 
-#include <QtTest/qtest.h>
+#include <QtTest/QtTest>
 #include <qvideoframeinput.h>
 #include <qaudiobufferinput.h>
 #include <qsignalspy.h>

@@ -15,7 +15,7 @@
 #  include "qffmpeghwaccel_videotoolbox_p.h"
 #endif
 
-#ifdef Q_OS_WINDOWS
+#if QT_CONFIG(wmf)
 #  include "qffmpeghwaccel_d3d11_p.h"
 #endif
 
@@ -33,8 +33,7 @@ template <typename Converter>
 using ConverterTypeIdentity = q20::type_identity<Converter>;
 
 template <typename ConverterTypeHandler>
-void applyConverterTypeByPixelFormat(AVPixelFormat fmt, const QRhi &rhi,
-                                     ConverterTypeHandler &&handler)
+void applyConverterTypeByPixelFormat(AVPixelFormat fmt, ConverterTypeHandler &&handler)
 {
     if (!TextureConverter::hwTextureConversionEnabled())
         return;
@@ -50,12 +49,9 @@ void applyConverterTypeByPixelFormat(AVPixelFormat fmt, const QRhi &rhi,
         handler(ConverterTypeIdentity<VideoToolBoxTextureConverter>{});
         break;
 #endif
-#ifdef Q_OS_WINDOWS
+#if QT_CONFIG(wmf)
     case AV_PIX_FMT_D3D11:
-        if (rhi.backend() == QRhi::Implementation::D3D11) {
-            if (rhi.driverInfo().deviceType != QRhiDriverInfo::CpuDevice)
-                handler(ConverterTypeIdentity<D3D11TextureConverter>{});
-        }
+        handler(ConverterTypeIdentity<D3D11TextureConverter>{});
         break;
 #endif
 #ifdef Q_OS_ANDROID
@@ -65,7 +61,6 @@ void applyConverterTypeByPixelFormat(AVPixelFormat fmt, const QRhi &rhi,
 #endif
     default:
         Q_UNUSED(handler)
-        Q_UNUSED(rhi)
         break;
     }
 }
@@ -110,7 +105,7 @@ void TextureConverter::updateBackend(AVPixelFormat fmt)
     m_backend = nullptr;
     m_format = fmt; // should be saved even if m_backend is not created
 
-    applyConverterTypeByPixelFormat(m_format, m_rhi, [this](auto converterTypeIdentity) {
+    applyConverterTypeByPixelFormat(m_format, [this](auto converterTypeIdentity) {
         using ConverterType = typename decltype(converterTypeIdentity)::type;
         m_backend = std::make_shared<ConverterType>(&m_rhi);
     });
@@ -133,7 +128,7 @@ void TextureConverter::applyDecoderPreset(const AVPixelFormat format, AVCodecCon
 
     Q_ASSERT(codecContext.codec && Codec(codecContext.codec).isDecoder());
 
-#ifdef Q_OS_WINDOWS
+#if QT_CONFIG(wmf)
     if (format == AV_PIX_FMT_D3D11)
         D3D11TextureConverter::SetupDecoderTextures(&codecContext);
 #elif defined Q_OS_ANDROID
@@ -145,10 +140,10 @@ void TextureConverter::applyDecoderPreset(const AVPixelFormat format, AVCodecCon
 #endif
 }
 
-bool TextureConverter::isBackendAvailable(AVFrame &hwFrame, const QRhi &rhi)
+bool TextureConverter::isBackendAvailable(AVFrame &hwFrame)
 {
     bool result = false;
-    applyConverterTypeByPixelFormat(AVPixelFormat(hwFrame.format), rhi, [&result](auto) {
+    applyConverterTypeByPixelFormat(AVPixelFormat(hwFrame.format), [&result](auto) {
         result = true;
     });
     return result;

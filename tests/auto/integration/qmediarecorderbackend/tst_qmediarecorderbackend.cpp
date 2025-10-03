@@ -1,7 +1,7 @@
 // Copyright (C) 2024 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
-#include <QtTest/qtest.h>
+#include <QtTest/QtTest>
 #include <QtMultimedia/qaudiodevice.h>
 #include <QtMultimedia/qaudiobufferinput.h>
 #include <QtMultimedia/qmediacapturesession.h>
@@ -20,7 +20,6 @@
 #include <private/osdetection_p.h>
 
 #include <QtCore/qtemporarydir.h>
-#include <QtCore/qmimetype.h>
 #include <chrono>
 
 using namespace std::chrono_literals;

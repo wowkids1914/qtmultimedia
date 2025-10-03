@@ -3,7 +3,7 @@
 
 #include "tst_qmediaplayer_gstreamer.h"
 
-#include <QtTest/qtest.h>
+#include <QtTest/QtTest>
 #include <QtMultimedia/private/qmediaplayer_p.h>
 
 #include <private/qscopedenvironmentvariable_p.h>

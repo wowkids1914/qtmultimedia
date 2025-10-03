@@ -4,6 +4,7 @@
 #include "qsymbolsresolveutils_p.h"
 
 #include <qdebug.h>
+#include <algorithm>
 #include <qloggingcategory.h>
 
 QT_BEGIN_NAMESPACE

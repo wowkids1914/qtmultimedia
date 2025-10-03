@@ -224,16 +224,8 @@ std::chrono::microseconds QPlatformAudioSinkStream::processedDuration() const
 
 void QPlatformAudioSinkStream::pullFromQIODevice()
 {
-    withPullIODeviceReentrancyGuard([this] {
-        pullFromQIODeviceImpl();
-    });
-}
-
-void QPlatformAudioSinkStream::pullFromQIODeviceImpl()
-{
     Q_ASSERT(thread()->isCurrentThread());
     Q_ASSERT(m_device);
-    Q_ASSERT(m_pullIODeviceReentrancyGuard);
 
     visitRingbuffer([&](auto &ringbuffer) {
         int elementsPulled = pullFromQIODeviceToRingbuffer(*m_device, ringbuffer);
@@ -252,10 +244,9 @@ void QPlatformAudioSinkStream::createQIODeviceConnections(QIODevice *device)
     // data has been pushed to device
     m_iodeviceHasNewDataConnection =
             QObject::connect(device, &QIODevice::readyRead, device, [this] {
-        withPullIODeviceReentrancyGuard([this] {
-            pullFromQIODeviceImpl();
-            updateStreamIdle(false);
-        });
+        pullFromQIODevice();
+
+        updateStreamIdle(false);
     });
 }
 

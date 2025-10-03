@@ -78,7 +78,6 @@ private:
     bool m_texturesDirty = false;
     std::array<QVideoFrameTexturesUPtr, MaxSlotsCount> m_textureSlots;
     std::optional<int> m_currentSlot;
-    QVideoFrameTexturesUPtr m_oldTextures;
 };
 
 QT_END_NAMESPACE

@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 #include <qtmultimediaglobal.h>
-#include <QtTest/qtest.h>
-#include <QtTest/qsignalspy.h>
+#include <QtTest/QtTest>
 
 #include "qvideowidget.h"
 #include "qvideosink.h"

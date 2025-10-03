@@ -6,7 +6,6 @@
 #include <private/qvideotexturehelper_p.h>
 #include <qpa/qplatformnativeinterface.h>
 #include <qguiapplication.h>
-#include <QtCore/qloggingcategory.h>
 
 #include <gst/video/video.h>
 #include <gst/video/video-frame.h>
@@ -37,8 +36,6 @@
 
 QT_BEGIN_NAMESPACE
 
-Q_STATIC_LOGGING_CATEGORY(qLcGstVideoBuffer, "qt.multimedia.gstreamer.videobuffer");
-
 // keep things building without drm_fourcc.h
 #define fourcc_code(a, b, c, d) ((uint32_t)(a) | ((uint32_t)(b) << 8) | \
                                  ((uint32_t)(c) << 16) | ((uint32_t)(d) << 24))
@@ -63,7 +60,7 @@ QGstVideoBuffer::QGstVideoBuffer(QGstBufferHandle buffer, const GstVideoInfo &in
                              ? QVideoFrame::RhiTextureHandle
                              : QVideoFrame::NoHandle,
                      sink ? sink->rhi() : nullptr),
-      m_memoryFormat(format),
+      memoryFormat(format),
       m_frameFormat(frameFormat),
       m_rhi(sink ? sink->rhi() : nullptr),
       m_videoInfo(info),
@@ -75,7 +72,7 @@ QGstVideoBuffer::QGstVideoBuffer(QGstBufferHandle buffer, const GstVideoInfo &in
         eglImageTargetTexture2D = sink->eglImageTargetTexture2D();
     }
 #endif
-    Q_UNUSED(m_memoryFormat);
+    Q_UNUSED(memoryFormat);
     Q_UNUSED(eglDisplay);
     Q_UNUSED(eglImageTargetTexture2D);
 }
@@ -259,8 +256,6 @@ private:
 static GlTextures mapFromGlTexture(const QGstBufferHandle &bufferHandle, GstVideoFrame &frame,
                                    GstVideoInfo &videoInfo)
 {
-    qCDebug(qLcGstVideoBuffer) << "mapFromGlTexture";
-
     GstBuffer *buffer = bufferHandle.get();
     auto *mem = GST_GL_BASE_MEMORY_CAST(gst_buffer_peek_memory(buffer, 0));
     if (!mem)
@@ -298,8 +293,6 @@ static GlTextures mapFromDmaBuffer(QRhi *rhi, const QGstBufferHandle &bufferHand
                                    GstVideoFrame &frame, GstVideoInfo &videoInfo,
                                    Qt::HANDLE eglDisplay, QFunctionPointer eglImageTargetTexture2D)
 {
-    qCDebug(qLcGstVideoBuffer) << "mapFromDmaBuffer";
-
     GstBuffer *buffer = bufferHandle.get();
 
     Q_ASSERT(gst_is_dmabuf_memory(gst_buffer_peek_memory(buffer, 0)));
@@ -323,12 +316,6 @@ static GlTextures mapFromDmaBuffer(QRhi *rhi, const QGstBufferHandle &bufferHand
     textures.count = GST_VIDEO_FRAME_N_PLANES(&frame);
     //        int width = GST_VIDEO_FRAME_WIDTH(&frame);
     //        int height = GST_VIDEO_FRAME_HEIGHT(&frame);
-    if (textures.count != gst_buffer_n_memory(buffer)) {
-        qCDebug(qLcGstVideoBuffer) << "mapFromDmaBuffer: Unsupported memory layout, creating "
-                                      "textures from system memory instead. Will be fixed by "
-                                      "https://codereview.qt-project.org/c/qt/qtmultimedia/+/662143";
-        return {};
-    }
     Q_ASSERT(GST_VIDEO_FRAME_N_PLANES(&frame) == gst_buffer_n_memory(buffer));
 
     QOpenGLFunctions functions(glContext);
@@ -385,11 +372,11 @@ QVideoFrameTexturesUPtr QGstVideoBuffer::mapTextures(QRhi &rhi, QVideoFrameTextu
 {
 #if QT_CONFIG(gstreamer_gl)
     GlTextures textures = {};
-    if (m_memoryFormat == QGstCaps::GLTexture)
+    if (memoryFormat == QGstCaps::GLTexture)
         textures = mapFromGlTexture(m_buffer, m_frame, m_videoInfo);
 
 #  if QT_CONFIG(gstreamer_gl_egl) && QT_CONFIG(linux_dmabuf)
-    else if (m_memoryFormat == QGstCaps::DMABuf)
+    else if (memoryFormat == QGstCaps::DMABuf)
         textures = mapFromDmaBuffer(m_rhi, m_buffer, m_frame, m_videoInfo, eglDisplay,
                                     eglImageTargetTexture2D);
 

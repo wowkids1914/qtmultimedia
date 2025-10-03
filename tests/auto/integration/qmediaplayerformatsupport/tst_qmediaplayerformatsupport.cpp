@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 #include <private/mediabackendutils_p.h>
-#include <QtTest/qtest.h>
-#include <QtTest/qsignalspy.h>
-#include <QtCore/qdebug.h>
-#include <QtCore/qdiriterator.h>
+#include <QtTest/QtTest>
+#include <QDebug>
 #include <QtMultimedia/qmediaplayer.h>
 #include <QtMultimedia/QVideoSink>
 

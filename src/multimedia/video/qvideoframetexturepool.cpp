@@ -19,10 +19,7 @@ QVideoFrameTextures* QVideoFrameTexturePool::updateTextures(QRhi &rhi, QRhiResou
 
     m_texturesDirty = false;
     QVideoFrameTexturesUPtr &textures = m_textureSlots[currentSlot];
-    Q_ASSERT(!m_oldTextures);
-    m_oldTextures = std::move(textures);
-    textures = QVideoTextureHelper::createTextures(m_currentFrame, rhi, rub, m_oldTextures);
-
+    textures = QVideoTextureHelper::createTextures(m_currentFrame, rhi, rub, std::move(textures));
     m_currentSlot = textures ? currentSlot : std::optional<int>{};
 
     return textures.get();
@@ -30,7 +27,6 @@ QVideoFrameTextures* QVideoFrameTexturePool::updateTextures(QRhi &rhi, QRhiResou
 
 void QVideoFrameTexturePool::onFrameEndInvoked()
 {
-    m_oldTextures.reset();
     if (m_currentSlot && m_textureSlots[*m_currentSlot])
         m_textureSlots[*m_currentSlot]->onFrameEndInvoked();
 }

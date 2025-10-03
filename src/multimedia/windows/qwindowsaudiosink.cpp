@@ -390,7 +390,7 @@ void QWASAPIAudioSinkStream::handleAudioClientError()
     audioClientStop(m_audioClient);
     audioClientReset(m_audioClient);
 
-    invokeOnAppThread([this] {
+    QMetaObject::invokeMethod(&m_ringbufferDrained, [this] {
         handleIOError(m_parent);
     });
 }

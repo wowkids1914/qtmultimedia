@@ -3,7 +3,7 @@
 
 // TESTED_COMPONENT=src/multimedia
 
-#include <QtTest/qtest.h>
+#include <QtTest/QtTest>
 #include <QSignalSpy>
 #include <private/qerrorinfo_p.h>
 

@@ -115,6 +115,8 @@ qt_internal_add_module(Multimedia
     DEFINES
         QT_NO_CAST_FROM_ASCII
         QT_NO_CAST_TO_ASCII
+        QT_NO_CONTEXTLESS_CONNECT
+        QT_USE_NODISCARD_FILE_OPEN
     LIBRARIES
         Qt::CorePrivate
         Qt::GuiPrivate
@@ -304,7 +306,7 @@ qt_internal_extend_target(Multimedia CONDITION QNX
         asound
 )
 
-qt_internal_extend_target(Multimedia CONDITION WIN32
+qt_internal_extend_target(Multimedia CONDITION QT_FEATURE_wmf
     SOURCES
         windows/qcominitializer.cpp windows/qcominitializer_p.h
         windows/qcomtaskresource_p.h
@@ -325,6 +327,7 @@ qt_internal_extend_target(Multimedia CONDITION WIN32
         ksuser
         propsys
         uuid
+        winmm
     NO_UNITY_BUILD_SOURCES
         # audioclient.h causes problems with mingw
         windows/qwindows_wasapi_warmup_client.cpp
@@ -335,18 +338,9 @@ qt_internal_extend_target(Multimedia CONDITION WIN32
         windows/qwindowsaudioutils.cpp
     )
 
-set(source_with_init_guid
-    windows/qwindows_wasapi_warmup_client.cpp
-    windows/qwindowsmuldimediautils.cpp
-    windows/qwindowsvideodevices.cpp
-)
-if(MINGW)
-    # mingw's uuid.lib does not contain PKEY_Device_FriendlyName and friends
-    list(APPEND source_with_init_guid windows/qwindowsaudiodevices.cpp)
-endif()
-
-set_source_files_properties(${source_with_init_guid} PROPERTIES COMPILE_DEFINITIONS INITGUID)
-
+# define INITGUID for unity builds to ensure guids are emitted in the translation units
+target_compile_definitions(Multimedia
+    PRIVATE $<$<BOOL:$<TARGET_PROPERTY:Multimedia,UNITY_BUILD>>:INITGUID>)
 
 qt_internal_extend_target(Multimedia CONDITION WASM
     SOURCES

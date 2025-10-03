@@ -16,7 +16,6 @@
 //
 
 #include <private/qplatformmediaintegration_p.h>
-#include <QtCore/qplugin.h>
 
 QT_BEGIN_NAMESPACE
 

@@ -166,53 +166,51 @@ bool QCoreAudioSinkStream::start(AudioCallback cb)
 
 void QCoreAudioSinkStream::stop(ShutdownPolicy policy)
 {
-    m_parent = nullptr;
-
-    if (m_audioCallback) {
-        stopStream();
-        return;
-    }
-
-    disconnectQIODeviceConnections();
-    stopIdleDetection();
-
     switch (policy) {
     case ShutdownPolicy::DrainRingbuffer:
-        stopStreamWhenBufferDrained();
+        stop();
         break;
     case ShutdownPolicy::DiscardRingbuffer:
-        stopStream();
+        reset();
         break;
     default:
         Q_UNREACHABLE_RETURN();
     }
 }
 
-void QCoreAudioSinkStream::stopStreamWhenBufferDrained()
+void QCoreAudioSinkStream::stop()
 {
     if (this->isIdle())
-        return stopStream();
+        return reset();
 
-    // we keep the stream alive until the idle handler is called by keeping a shared_ptr
-    // reference alive. Once the stream finishes, the idle handler will stop the audio unit
-    // and delete the stream.
-    connectIdleHandler([this, ownedSelf = shared_from_this()]() mutable {
+    requestStop();
+#ifdef Q_OS_MACOS
+    removeDisconnectListener();
+#endif
+    disconnectQIODeviceConnections();
+
+    stopIdleDetection();
+
+    connectIdleHandler([this] {
         if (!isIdle())
             return;
 
         // stop on application thread once ringbuffer is empty
-        stopStream();
+        stopAudioUnit();
 
-        ownedSelf = nullptr; // might delete the instance
+        m_self = nullptr; // might delete the instance
     });
+
+    m_parent = nullptr;
+
+    // take ownership and
+    m_self = shared_from_this();
 }
 
-void QCoreAudioSinkStream::stopStream()
+void QCoreAudioSinkStream::reset()
 {
-#ifdef Q_OS_MACOS
-    removeDisconnectListener();
-#endif
     requestStop();
+
     stopAudioUnit();
 }
 
@@ -267,7 +265,7 @@ OSStatus QCoreAudioSinkStream::processAudioCallback(uint32_t numberOfFrames,
         ioData->mBuffers[0].mDataByteSize,
     };
 
-    runAudioCallback(*m_audioCallback, inputSpan, m_format);
+    runAudioCallback(m_audioCallback, inputSpan, m_format);
 
     return noErr;
 }

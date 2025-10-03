@@ -1,9 +1,8 @@
 // Copyright (C) 2016 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
-#include <QtTest/qtest.h>
+#include <QtTest/QtTest>
 #include <private/qsamplecache_p.h>
-#include <QtCore/qfuturewatcher.h>
 
 class tst_QSampleCache : public QObject
 {

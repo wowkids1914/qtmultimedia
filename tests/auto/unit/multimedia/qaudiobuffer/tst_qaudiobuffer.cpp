@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 #include <QtCore/QString>
-#include <QtTest/qtest.h>
+#include <QtTest/QtTest>
 
 #include <qaudiobuffer.h>
 #include <QtMultimedia/private/qaudiobuffer_support_p.h>

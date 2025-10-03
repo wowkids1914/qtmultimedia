@@ -16,6 +16,9 @@
 #include <QtMultimedia/private/qwindowsaudioutils_p.h>
 
 #include <audioclient.h>
+#ifndef INITGUID
+#  define INITGUID
+#endif
 #include <guiddef.h>
 #include <mmdeviceapi.h>
 #include <powrprof.h>

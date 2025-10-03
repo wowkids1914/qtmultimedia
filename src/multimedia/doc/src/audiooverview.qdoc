@@ -5,7 +5,6 @@
 \page audiooverview.html
 \title Audio Overview
 \inlineimage sound-wave-small.jpg
-             {Sound wave}
 \brief Playback, recording and processing of Audio.
 \ingroup explanations-graphicsandmultimedia
 

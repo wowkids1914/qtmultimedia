@@ -3,10 +3,9 @@
 
 #include "tst_gstreamer_backend.h"
 
-#include <QtTest/qtest.h>
-
-#include <QtCore/qtemporaryfile.h>
+#include <QtTest/QtTest>
 #include <QtMultimedia/qmediaformat.h>
+
 #include <QtGstreamerMediaPluginImpl/private/qgst_handle_types_p.h>
 #include <QtGstreamerMediaPluginImpl/private/qgst_p.h>
 #include <QtGstreamerMediaPluginImpl/private/qgst_debug_p.h>

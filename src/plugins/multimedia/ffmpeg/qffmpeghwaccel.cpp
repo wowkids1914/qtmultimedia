@@ -5,7 +5,7 @@
 
 #include "qffmpeghwaccel_p.h"
 
-#ifdef Q_OS_WINDOWS
+#if QT_CONFIG(wmf)
 #  include "qffmpeghwaccel_d3d11_p.h"
 #  include <QtCore/private/qsystemlibrary_p.h>
 #endif
@@ -426,7 +426,7 @@ HwFrameContextData &HwFrameContextData::ensure(AVFrame &hwFrame)
 
 AVFrameUPtr copyFromHwPool(AVFrameUPtr frame)
 {
-#ifdef Q_OS_WINDOWS
+#if QT_CONFIG(wmf)
     return copyFromHwPoolD3D11(std::move(frame));
 #else
     return frame;

@@ -1,10 +1,7 @@
 // Copyright (C) 2021 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
-#include <QtTest/qtest.h>
-#include <QtTest/qsignalspy.h>
-#include <QtCore/qbuffer.h>
-#include <QtCore/qsemaphore.h>
+#include <QtTest/QtTest>
 #include <QtCore/qtemporarydir.h>
 
 #include <QtMultimedia/qaudio.h>

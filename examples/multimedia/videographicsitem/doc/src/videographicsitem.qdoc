@@ -13,7 +13,6 @@
     displays video on a graphics scene using QVideoSink.
 
     \image video-videographicsitem.png
-           {Video interface with control panel}
 
     \sa {Video Widget Example}
 
