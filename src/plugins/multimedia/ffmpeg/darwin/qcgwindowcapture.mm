@@ -99,8 +99,8 @@ public:
 protected:
     QVideoFrame grabFrame() override
     {
-        // if (auto rate = frameRateForWindow(m_wid))
-        //     setFrameRate(*rate);
+        if (auto rate = frameRateForWindow(m_wid))
+            setFrameRate(*rate);
 
         // auto imageRef = CGWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow,
         //                                         m_wid, kCGWindowImageBoundsIgnoreFraming);
