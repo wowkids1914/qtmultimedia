@@ -99,39 +99,43 @@ public:
 protected:
     QVideoFrame grabFrame() override
     {
-        if (auto rate = frameRateForWindow(m_wid))
-            setFrameRate(*rate);
+        // if (auto rate = frameRateForWindow(m_wid))
+        //     setFrameRate(*rate);
 
-        auto imageRef = CGWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow,
-                                                m_wid, kCGWindowImageBoundsIgnoreFraming);
-        if (!imageRef) {
-            updateError(QPlatformSurfaceCapture::CaptureFailed,
-                        QLatin1String("Cannot create image by window"));
-            return {};
-        }
+        // auto imageRef = CGWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow,
+        //                                         m_wid, kCGWindowImageBoundsIgnoreFraming);
+        // if (!imageRef) {
+        //     updateError(QPlatformSurfaceCapture::CaptureFailed,
+        //                 QLatin1String("Cannot create image by window"));
+        //     return {};
+        // }
 
-        auto imageDeleter = qScopeGuard([imageRef]() { CGImageRelease(imageRef); });
+        // auto imageDeleter = qScopeGuard([imageRef]() { CGImageRelease(imageRef); });
 
-        if (CGImageGetBitsPerPixel(imageRef) != 32
-            || CGImageGetPixelFormatInfo(imageRef) != kCGImagePixelFormatPacked
-            || CGImageGetByteOrderInfo(imageRef) != kCGImageByteOrder32Little) {
-            qWarning() << "Unexpected image format. PixelFormatInfo:"
-                       << CGImageGetPixelFormatInfo(imageRef)
-                       << "BitsPerPixel:" << CGImageGetBitsPerPixel(imageRef) << "AlphaInfo"
-                       << CGImageGetAlphaInfo(imageRef)
-                       << "ByteOrderInfo:" << CGImageGetByteOrderInfo(imageRef);
+        // if (CGImageGetBitsPerPixel(imageRef) != 32
+        //     || CGImageGetPixelFormatInfo(imageRef) != kCGImagePixelFormatPacked
+        //     || CGImageGetByteOrderInfo(imageRef) != kCGImageByteOrder32Little) {
+        //     qWarning() << "Unexpected image format. PixelFormatInfo:"
+        //                << CGImageGetPixelFormatInfo(imageRef)
+        //                << "BitsPerPixel:" << CGImageGetBitsPerPixel(imageRef) << "AlphaInfo"
+        //                << CGImageGetAlphaInfo(imageRef)
+        //                << "ByteOrderInfo:" << CGImageGetByteOrderInfo(imageRef);
 
-            updateError(QPlatformSurfaceCapture::CapturingNotSupported,
-                        QLatin1String("Not supported pixel format"));
-            return {};
-        }
+        //     updateError(QPlatformSurfaceCapture::CapturingNotSupported,
+        //                 QLatin1String("Not supported pixel format"));
+        //     return {};
+        // }
 
-        QVideoFrameFormat format(QSize(CGImageGetWidth(imageRef), CGImageGetHeight(imageRef)),
-                                 QVideoFrameFormat::Format_BGRA8888);
-        format.setStreamFrameRate(frameRate());
+        // QVideoFrameFormat format(QSize(CGImageGetWidth(imageRef), CGImageGetHeight(imageRef)),
+        //                          QVideoFrameFormat::Format_BGRA8888);
+        // format.setStreamFrameRate(frameRate());
 
-        return QVideoFramePrivate::createFrame(std::make_unique<QCGImageVideoBuffer>(imageRef),
-                                               std::move(format));
+        // return QVideoFramePrivate::createFrame(std::make_unique<QCGImageVideoBuffer>(imageRef),
+        //                                        std::move(format));
+    
+        updateError(QPlatformSurfaceCapture::CaptureFailed,
+                    QLatin1String("Cannot create image by window"));
+        return {};
     }
 
     void onNewFrame(QVideoFrame frame)
