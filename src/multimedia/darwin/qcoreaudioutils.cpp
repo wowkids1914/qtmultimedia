@@ -15,34 +15,24 @@ QT_BEGIN_NAMESPACE
 
 namespace QCoreAudioUtils {
 
-QAudioFormat toQAudioFormat(AudioStreamBasicDescription const& sf)
+QAudioFormat toPreferredQAudioFormat(AudioStreamBasicDescription const &sf)
 {
-    QAudioFormat    audioFormat;
-    // all Darwin HW is little endian, we ignore those formats
-    if ((sf.mFormatFlags & kAudioFormatFlagIsBigEndian) != 0 && QSysInfo::ByteOrder != QSysInfo::LittleEndian)
-        return audioFormat;
+    // coreaudio will do the format conversions for us, we only need to give the best match
+    const QAudioFormat::SampleFormat format = [&] {
+        const bool isFloat = sf.mFormatFlags & kAudioFormatFlagIsFloat;
+        switch (sf.mBitsPerChannel) {
+        case 8:
+            return QAudioFormat::UInt8;
+        case 16:
+            return QAudioFormat::Int16;
+        case 32:
+            return isFloat ? QAudioFormat::Float : QAudioFormat::Int32;
+        default:
+            return QAudioFormat::Float;
+        }
+    }();
 
-    // filter out the formats we're interested in
-    QAudioFormat::SampleFormat format = QAudioFormat::Unknown;
-    switch (sf.mBitsPerChannel) {
-    case 8:
-        if ((sf.mFormatFlags & kAudioFormatFlagIsSignedInteger) == 0)
-            format = QAudioFormat::UInt8;
-        break;
-    case 16:
-        if ((sf.mFormatFlags & kAudioFormatFlagIsSignedInteger) != 0)
-            format = QAudioFormat::Int16;
-        break;
-    case 32:
-        if ((sf.mFormatFlags & kAudioFormatFlagIsSignedInteger) != 0)
-            format = QAudioFormat::Int32;
-        else if ((sf.mFormatFlags & kAudioFormatFlagIsFloat) != 0)
-            format = QAudioFormat::Float;
-        break;
-    default:
-        break;
-    }
-
+    QAudioFormat audioFormat;
     audioFormat.setSampleFormat(format);
     audioFormat.setSampleRate(sf.mSampleRate);
     audioFormat.setChannelCount(sf.mChannelsPerFrame);

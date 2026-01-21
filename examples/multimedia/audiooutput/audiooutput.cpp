@@ -3,12 +3,7 @@
 
 #include "audiooutput.h"
 
-#include <QAudioDevice>
-#include <QAudioSink>
-#include <QDebug>
 #include <QVBoxLayout>
-#include <QtEndian>
-#include <QtMath>
 
 Generator::Generator(const QAudioFormat &format, qint64 durationUs, int sampleRate)
 {
@@ -27,10 +22,44 @@ void Generator::stop()
     close();
 }
 
+using namespace Qt::Literals::StringLiterals;
+static QString sampleFormatToString(QAudioFormat::SampleFormat f)
+{
+    switch (f) {
+    case QAudioFormat::UInt8: return u"UInt8"_s;
+    case QAudioFormat::Int16: return u"Int16"_s;
+    case QAudioFormat::Int32: return u"Int32"_s;
+    case QAudioFormat::Float: return u"Float"_s;
+    default:                  return u"Unknown"_s;
+    }
+}
+
+static constexpr std::array allSupportedSampleRates{
+    8'000, 11'025, 12'000, 16'000, 22'050, 24'000, 32'000, 44'100,
+    48'000, 64'000, 88'200, 96'000, 128'000, 176'400, 192'000,
+};
+
+template<typename T>
+static void setCurrentValue(QComboBox *box, const T &value) {
+    int idx = box->findData(QVariant::fromValue(value));
+    if (idx >= 0)
+        box->setCurrentIndex(idx);
+}
+
+static void syncFormatGui(QComboBox *m_formatBox,
+                          QComboBox *m_channelsBox,
+                          QComboBox *m_rateBox,
+                          const QAudioFormat &format) {
+    setCurrentValue(m_formatBox, format.sampleFormat());
+    setCurrentValue(m_rateBox, format.sampleRate());
+    setCurrentValue(m_channelsBox, format.channelCount());
+}
+
 void Generator::generateData(const QAudioFormat &format, qint64 durationUs, int sampleRate)
 {
     const int channelBytes = format.bytesPerSample();
-    const int sampleBytes = format.channelCount() * channelBytes;
+    [[maybe_unused]] const int sampleBytes = format.channelCount() * channelBytes;
+    Q_ASSERT(sampleBytes != 0);
     qint64 length = format.bytesForDuration(durationUs);
     Q_ASSERT(length % sampleBytes == 0);
     Q_UNUSED(sampleBytes); // suppress warning in release builds
@@ -142,6 +171,59 @@ void AudioTest::initializeWindow()
     volumeBox->addWidget(m_volumeSlider);
     layout->addLayout(volumeBox);
 
+    // Sample Format selector
+    QHBoxLayout *formatBox = new QHBoxLayout;
+    QLabel *formatLabel = new QLabel;
+    formatLabel->setText(tr("Sample Format:"));
+    m_formatBox = new QComboBox(this);
+
+    // populate the sample format combo box
+    // supportedSampleFormats returns enum so we cast it to string.
+    const auto formats = defaultDeviceInfo.supportedSampleFormats();
+    for (const QAudioFormat::SampleFormat fmt : formats)
+        m_formatBox->addItem(sampleFormatToString(fmt), QVariant::fromValue(fmt));
+
+    //Sample rate button
+    QLabel *rateLabel = new QLabel;
+    rateLabel->setText(tr("Sample Rate:"));
+    m_rateBox = new QComboBox(this);
+
+    // populate from the hardcoded list in this cpp file
+    for (int rate : allSupportedSampleRates)
+        m_rateBox->addItem(QString::number(rate), rate);
+
+    // setting channel count
+    QLabel *chLabel = new QLabel;
+    chLabel->setText(tr("Channels:"));
+    m_channelsBox = new QComboBox(this);
+
+    // populate from device min..max
+    int minCh = defaultDeviceInfo.minimumChannelCount();
+    int maxCh = defaultDeviceInfo.maximumChannelCount();
+    for (int ch = minCh; ch <= maxCh; ++ch)
+        m_channelsBox->addItem(QString::number(ch), ch);
+
+    // set the value of the boxes to be the initial values of the format.
+    const QAudioFormat pref = defaultDeviceInfo.preferredFormat();
+    syncFormatGui(m_formatBox, m_channelsBox, m_rateBox, pref);
+
+    for (auto box : {m_channelsBox, m_rateBox, m_formatBox}) {
+        connect(box, &QComboBox::activated, this, [this, box]() {
+            formatChanged(box);
+        });
+    }
+
+    // add all to the same row
+    formatBox->addWidget(formatLabel);
+    formatBox->addWidget(m_formatBox);
+    formatBox->addSpacing(12);
+    formatBox->addWidget(rateLabel);
+    formatBox->addWidget(m_rateBox);
+    formatBox->addSpacing(12);
+    formatBox->addWidget(chLabel);
+    formatBox->addWidget(m_channelsBox);
+
+    layout->addLayout(formatBox);
     window->setLayout(layout);
 
     setCentralWidget(window);
@@ -159,28 +241,68 @@ void AudioTest::initializeWindow()
 void AudioTest::initializeAudio(const QAudioDevice &deviceInfo)
 {
     QAudioFormat format = deviceInfo.preferredFormat();
+    applyAudioFormat(deviceInfo, format);
+}
 
+void AudioTest::applyAudioFormat(const QAudioDevice &deviceInfo, const QAudioFormat &format)
+{
+    // keep previous format to roll back if changing the audio format fails
+    QAudioFormat prevFmt;
+
+    if (m_audioSink)
+        prevFmt = m_audioSink->format();
+    else
+        prevFmt = deviceInfo.preferredFormat();
+
+    // rebuild generator and sink with the requested format
     const int durationSeconds = 1;
     const int toneSampleRateHz = 600;
     m_generator.reset(new Generator(format, durationSeconds * 1000000, toneSampleRateHz));
     m_audioSink.reset(new QAudioSink(deviceInfo, format));
+
     m_generator->start();
 
-    m_suspendResumeButton->setText(tr("Suspend playback"));
-    connect(m_audioSink.get(), &QAudioSink::stateChanged, this, [this](QAudio::State state) {
-        switch (state) {
-        case QAudio::SuspendedState:
-            m_suspendResumeButton->setText(tr("Resume playback"));
-            break;
-        default:
-            m_suspendResumeButton->setText(tr("Suspend playback"));
-            break;
-        }
-    });
+    // handle startup/runtime errors and success negotiation
+    connect(m_audioSink.get(), &QAudioSink::stateChanged, this,
+            [this, prevFmt](QAudio::State s) {
+                const auto err = m_audioSink->error();
 
-    qreal initialVolume = QAudio::convertVolume(m_audioSink->volume(), QAudio::LinearVolumeScale,
+                // startup failure (format rejected or device unavailable)
+                if (err == QAudio::OpenError && s == QAudio::StoppedState) {
+                    QMessageBox::warning(this, tr("Audio start failed"),
+                                         tr("Device rejected the format or is unavailable."));
+                    auto dev = m_deviceBox->currentData().value<QAudioDevice>();
+                    applyAudioFormat(dev, prevFmt);
+                    return;
+                }
+
+                // runtime I/O or fatal device error (disconnects, etc.)
+                if (err == QAudio::IOError || err == QAudio::FatalError) {
+                    QMessageBox::warning(this, tr("Audio error"),
+                                    tr("Audio device error. Restoring previous format/device."));
+                    auto dev = m_deviceBox->currentData().value<QAudioDevice>();
+                    applyAudioFormat(dev, prevFmt);
+                    return;
+                }
+
+                // reflect negotiated format on successful activation
+                if (s == QAudio::ActiveState) {
+                    syncFormatGui(m_formatBox, m_channelsBox, m_rateBox, m_audioSink->format());
+                }
+
+                // reset suspend/resume to new audiosink
+                m_suspendResumeButton->setText(tr("Suspend playback"));
+                if (s == QAudio::SuspendedState) {
+                    m_suspendResumeButton->setText(tr("Resume playback"));
+                }
+            });
+
+    // set initial volume and kick the stream
+    qreal initialVolume = QAudio::convertVolume(m_audioSink->volume(),
+                                                QAudio::LinearVolumeScale,
                                                 QAudio::LogarithmicVolumeScale);
     m_volumeSlider->setValue(qRound(initialVolume * 100));
+
     restartAudioStream();
 }
 
@@ -189,15 +311,47 @@ void AudioTest::deviceChanged(int index)
     m_generator->stop();
     m_audioSink->stop();
     m_audioSink->disconnect(this);
+
+    QAudioDevice dev = m_deviceBox->itemData(index).value<QAudioDevice>();
+
+    // formats
+    m_formatBox->clear();
+    const auto formats = dev.supportedSampleFormats();
+    for (const QAudioFormat::SampleFormat sf : formats)
+        m_formatBox->addItem(sampleFormatToString(sf), QVariant::fromValue(sf));
+
+    // channels
+    m_channelsBox->clear();
+    for (int ch = dev.minimumChannelCount(); ch <= dev.maximumChannelCount(); ++ch)
+        m_channelsBox->addItem(QString::number(ch), ch);
+
     initializeAudio(m_deviceBox->itemData(index).value<QAudioDevice>());
 }
 
 void AudioTest::volumeChanged(int value)
 {
-    qreal linearVolume = QAudio::convertVolume(value / qreal(100), QAudio::LogarithmicVolumeScale,
+    qreal linearVolume = QAudio::convertVolume(value / qreal(100),
+                                               QAudio::LogarithmicVolumeScale,
                                                QAudio::LinearVolumeScale);
 
     m_audioSink->setVolume(linearVolume);
+}
+
+void AudioTest::formatChanged(QComboBox *box)
+{
+    QAudioDevice device = m_deviceBox->currentData().value<QAudioDevice>();
+    QAudioFormat newFormat = m_audioSink->format();
+
+    if (box == m_formatBox) {
+        newFormat.setSampleFormat(
+            static_cast<QAudioFormat::SampleFormat>(box->currentData().toInt()));
+    } else if (box == m_rateBox) {
+        newFormat.setSampleRate(box->currentData().toInt());
+    } else if (box == m_channelsBox) {
+        newFormat.setChannelCount(box->currentData().toInt());
+    }
+
+    applyAudioFormat(device, newFormat);
 }
 
 void AudioTest::updateAudioDevices()
@@ -222,6 +376,11 @@ void AudioTest::restartAudioStream()
     // Reset audiosink
     m_audioSink->reset();
 
+    qreal initialVolume = QAudio::convertVolume(m_audioSink->volume(),
+                                                QAudio::LinearVolumeScale,
+                                                QAudio::LogarithmicVolumeScale);
+    m_volumeSlider->setValue(qRound(initialVolume * 100));
+
     if (m_pullMode) {
         // pull mode: QAudioSink pulls from Generator as needed
         m_audioSink->start(m_generator.get());
@@ -230,7 +389,7 @@ void AudioTest::restartAudioStream()
         auto io = m_audioSink->start();
         m_pushTimer->disconnect();
 
-        connect(m_pushTimer, &QTimer::timeout, [this, io]() {
+        connect(m_pushTimer, &QTimer::timeout, this, [this, io]() {
             if (m_audioSink->state() == QAudio::StoppedState)
                 return;
 

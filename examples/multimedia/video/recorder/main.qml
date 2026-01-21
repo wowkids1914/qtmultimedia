@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
 
 import QtQuick
-import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtMultimedia
@@ -51,7 +50,7 @@ Window {
                     mediaList.append()
                 } else if (state === MediaRecorder.RecordingState && captureSession.camera) {
                     // lock orientation while recording and create a preview image
-                    root.contentOrientation = root.screen.orientation;
+                    root.contentOrientation = Screen.orientation;
                     videoOutput.grabToImage(function(res) { mediaList.mediaThumbnail = res.url })
                 }
             }
@@ -119,9 +118,9 @@ Window {
 
             StyleRectangle {
                 Layout.alignment: Qt.AlignHCenter
+                Layout.preferredHeight: 1
+                Layout.preferredWidth: controls.width
                 visible: controls.settingsVisible
-                width: controls.width
-                height: 1
             }
 
             SettingsEncoder {
@@ -139,6 +138,31 @@ Window {
                 visible: !Style.isMobile() && controls.settingsVisible
                 recorder: recorder
            }
+        }
+    }
+
+    Pane {
+        anchors.fill: parent
+        visible:
+            PermissionHelper.cameraStatus !== Qt.PermissionStatus.Granted
+            && PermissionHelper.microphoneStatus !== Qt.PermissionStatus.Granted
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: "Camera and microphone permissions must be granted to use this example"
+            }
+            Button {
+                Layout.alignment: Qt.AlignHCenter
+                text: "Press to request permissions"
+                onClicked: {
+                    if (PermissionHelper.cameraStatus !== Qt.PermissionStatus.Granted)
+                        PermissionHelper.requestCamera()
+                    if (PermissionHelper.microphoneStatus !== Qt.PermissionStatus.Granted)
+                        PermissionHelper.requestMicrophone()
+                }
+            }
         }
     }
 }

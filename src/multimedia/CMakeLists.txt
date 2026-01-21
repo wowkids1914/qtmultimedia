@@ -208,6 +208,7 @@ if (QT_FEATURE_pipewire)
             pipewire/qpipewire_registry_support.cpp    pipewire/qpipewire_registry_support_p.h
             pipewire/qpipewire_spa_compat_p.h
             pipewire/qpipewire_spa_pod_support.cpp     pipewire/qpipewire_spa_pod_support_p.h
+            pipewire/qpipewire_spa_pod_parser_support_p.h
             pipewire/qpipewire_support.cpp             pipewire/qpipewire_support_p.h
             pipewire/qpipewire_symbolloader.cpp        pipewire/qpipewire_symbolloader_p.h
     )
@@ -268,6 +269,7 @@ qt_internal_extend_target(Multimedia CONDITION ANDROID
         android/qandroidaudiosink.cpp android/qandroidaudiosink_p.h
         android/qandroidaudiodevice.cpp android/qandroidaudiodevice_p.h
         android/qandroidaudiodevices.cpp android/qandroidaudiodevices_p.h
+        android/qandroidaudiojnitypes_p.h
         android/qandroidaudioutil.cpp android/qandroidaudioutil_p.h
         android/qaaudiostream.cpp android/qaaudiostream_p.h
     LIBRARIES
@@ -318,6 +320,7 @@ qt_internal_extend_target(Multimedia CONDITION APPLE
 
 qt_internal_extend_target(Multimedia CONDITION MACOS OR IOS
     SOURCES
+        darwin/qdarwinintegrationfactory_p.h darwin/qdarwinintegrationfactory.mm
         darwin/qavfcameradebug_p.h
         darwin/qavfcamerautility_p.h darwin/qavfcamerautility.mm
         darwin/qavfvideodevices.mm darwin/qavfvideodevices_p.h

@@ -76,6 +76,9 @@ bool QWASAPIAudioSinkStream::open()
 bool QWASAPIAudioSinkStream::start(QIODevice *ioDevice)
 {
     auto immDevice = QAudioDevicePrivate::handle<QWindowsAudioDevice>(m_audioDevice)->open();
+    if (!immDevice)
+        return false;
+
     bool clientOpen = openAudioClient(std::move(immDevice), m_role);
     if (!clientOpen)
         return false;
@@ -94,6 +97,9 @@ bool QWASAPIAudioSinkStream::start(QIODevice *ioDevice)
 QIODevice *QWASAPIAudioSinkStream::start()
 {
     auto immDevice = QAudioDevicePrivate::handle<QWindowsAudioDevice>(m_audioDevice)->open();
+    if (!immDevice)
+        return nullptr;
+
     bool clientOpen = openAudioClient(std::move(immDevice), m_role);
     if (!clientOpen)
         return nullptr;
@@ -115,6 +121,9 @@ QIODevice *QWASAPIAudioSinkStream::start()
 bool QWASAPIAudioSinkStream::start(AudioCallback audioCallback)
 {
     auto immDevice = QAudioDevicePrivate::handle<QWindowsAudioDevice>(m_audioDevice)->open();
+    if (!immDevice)
+        return false;
+
     bool clientOpen = openAudioClient(std::move(immDevice), m_role);
     if (!clientOpen)
         return false;
@@ -147,15 +156,14 @@ void QWASAPIAudioSinkStream::stop(ShutdownPolicy shutdownPolicy)
     case ShutdownPolicy::DiscardRingbuffer: {
         requestStop();
         audioClientStop(m_audioClient);
-        m_workerThread->wait();
-        m_workerThread = {};
+        joinWorkerThread();
         audioClientReset(m_audioClient);
 
         return;
     }
     case ShutdownPolicy::DrainRingbuffer: {
         m_ringbufferDrained.callOnActivated([self = shared_from_this()]() mutable {
-            self->m_workerThread->wait();
+            self->joinWorkerThread();
             self = {};
         });
         return;
@@ -224,7 +232,12 @@ bool QWASAPIAudioSinkStream::startAudioClient(StreamType streamType)
     m_workerThread->setObjectName(u"QWASAPIAudioSinkStream");
     m_workerThread->start();
 
-    return QWindowsAudioUtils::audioClientStart(m_audioClient);
+    bool started = QWindowsAudioUtils::audioClientStart(m_audioClient);
+    if (!started) {
+        joinWorkerThread();
+        return false;
+    }
+    return true;
 }
 
 void QWASAPIAudioSinkStream::fillInitialHostBuffer()
@@ -373,6 +386,14 @@ bool QWASAPIAudioSinkStream::processCallback() noexcept QT_MM_NONBLOCKING
         runAudioCallback(m_audioCallback, hostBuffer, m_format, volume());
         return requiredFrames;
     });
+}
+
+void QWASAPIAudioSinkStream::joinWorkerThread()
+{
+    requestStop();
+    ::SetEvent(m_wasapiHandle.get()); // force wakeup
+    m_workerThread->wait();
+    m_workerThread = {};
 }
 
 void QWASAPIAudioSinkStream::handleAudioClientError()

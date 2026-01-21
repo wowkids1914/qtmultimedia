@@ -46,7 +46,7 @@ bool channelPositionsEqual(const Lhs &lhs, const Rhs &rhs)
 } // namespace
 
 QPipewireAudioDevicePrivate::QPipewireAudioDevicePrivate(const PwPropertyDict &nodeProperties,
-                                                         const PwPropertyDict &deviceProperties,
+                                                         std::optional<QByteArray> sysfsPath,
                                                          const SpaObjectAudioFormat &formats,
                                                          QAudioDevice::Mode mode, bool isDefault)
     : QAudioDevicePrivate{
@@ -65,8 +65,8 @@ QPipewireAudioDevicePrivate::QPipewireAudioDevicePrivate(const PwPropertyDict &n
     supportedSampleFormats = allSampleFormats;
     this->isDefault = isDefault;
 
-    if (auto path = getDeviceSysfsPath(deviceProperties))
-        m_sysfsPath.assign(*path);
+    if (sysfsPath)
+        m_sysfsPath = std::move(sysfsPath);
 
     if (auto nodeName = getNodeName(nodeProperties))
         m_nodeName.assign(*nodeName);
@@ -86,26 +86,32 @@ QPipewireAudioDevicePrivate::QPipewireAudioDevicePrivate(const PwPropertyDict &n
     maximumChannelCount = formats.channelCount;
 
     m_channelPositions = formats.channelPositions;
-    if (channelPositionsEqual(m_channelPositions, channelPositionsMono)) {
-        channelConfiguration = QAudioFormat::ChannelConfigMono;
-    } else if (channelPositionsEqual(m_channelPositions, channelPositionsStereo)) {
-        channelConfiguration = QAudioFormat::ChannelConfigStereo;
-    } else if (channelPositionsEqual(m_channelPositions, channelPositions2Dot1)) {
-        channelConfiguration = QAudioFormat::ChannelConfig2Dot1;
-    } else if (channelPositionsEqual(m_channelPositions, channelPositions3Dot0)) {
-        channelConfiguration = QAudioFormat::ChannelConfig3Dot0;
-    } else if (channelPositionsEqual(m_channelPositions, channelPositions3Dot1)) {
-        channelConfiguration = QAudioFormat::ChannelConfig3Dot1;
-    } else if (channelPositionsEqual(m_channelPositions, channelPositions5Dot0)) {
-        channelConfiguration = QAudioFormat::ChannelConfigSurround5Dot0;
-    } else if (channelPositionsEqual(m_channelPositions, channelPositions5Dot1)) {
-        channelConfiguration = QAudioFormat::ChannelConfigSurround5Dot1;
-    } else if (channelPositionsEqual(m_channelPositions, channelPositions7Dot0)) {
-        channelConfiguration = QAudioFormat::ChannelConfigSurround7Dot0;
-    } else if (channelPositionsEqual(m_channelPositions, channelPositions7Dot1)) {
-        channelConfiguration = QAudioFormat::ChannelConfigSurround7Dot1;
+    if (m_channelPositions) {
+        if (channelPositionsEqual(*m_channelPositions, channelPositionsMono)) {
+            channelConfiguration = QAudioFormat::ChannelConfigMono;
+        } else if (channelPositionsEqual(*m_channelPositions, channelPositionsStereo)) {
+            channelConfiguration = QAudioFormat::ChannelConfigStereo;
+        } else if (channelPositionsEqual(*m_channelPositions, channelPositions2Dot1)) {
+            channelConfiguration = QAudioFormat::ChannelConfig2Dot1;
+        } else if (channelPositionsEqual(*m_channelPositions, channelPositions3Dot0)) {
+            channelConfiguration = QAudioFormat::ChannelConfig3Dot0;
+        } else if (channelPositionsEqual(*m_channelPositions, channelPositions3Dot1)) {
+            channelConfiguration = QAudioFormat::ChannelConfig3Dot1;
+        } else if (channelPositionsEqual(*m_channelPositions, channelPositions5Dot0)) {
+            channelConfiguration = QAudioFormat::ChannelConfigSurround5Dot0;
+        } else if (channelPositionsEqual(*m_channelPositions, channelPositions5Dot1)) {
+            channelConfiguration = QAudioFormat::ChannelConfigSurround5Dot1;
+        } else if (channelPositionsEqual(*m_channelPositions, channelPositions7Dot0)) {
+            channelConfiguration = QAudioFormat::ChannelConfigSurround7Dot0;
+        } else if (channelPositionsEqual(*m_channelPositions, channelPositions7Dot1)) {
+            channelConfiguration = QAudioFormat::ChannelConfigSurround7Dot1;
+        } else {
+            // now we need to guess
+            channelConfiguration =
+                    QAudioFormat::defaultChannelConfigForChannelCount(formats.channelCount);
+        }
     } else {
-        // now we need to guess
+        // we again need to guess
         channelConfiguration =
                 QAudioFormat::defaultChannelConfigForChannelCount(formats.channelCount);
     }
@@ -145,20 +151,23 @@ void QPipewireAudioDevicePrivate::setPreferredSampleFormats(spa_audio_format arg
     preferredFormat.setSampleFormat(fmt);
 }
 
+void QPipewireAudioDevicePrivate::setPreferredSampleFormats(spa_audio_iec958_codec codec)
+{
+    Q_ASSERT(codec == SPA_AUDIO_IEC958_CODEC_PCM);
+
+    // technically iec958 would be 20 or 24 bit PCM, but pipewire will do software mixing, so float
+    // is our preferred option here
+    preferredFormat.setSampleFormat(QAudioFormat::Float);
+}
+
 void QPipewireAudioDevicePrivate::setPreferredSampleFormats(const SpaEnum<spa_audio_format> &fmt)
 {
-    for (spa_audio_format f : fmt.values()) {
-        auto qtFormat = toSampleFormat(f);
-        if (qtFormat != QAudioFormat::Unknown)
-            supportedSampleFormats.push_back(qtFormat);
-    }
-
     QAudioFormat::SampleFormat sampleFormat = toSampleFormat(fmt.defaultValue());
     if (sampleFormat != QAudioFormat::Unknown) {
         preferredFormat.setSampleFormat(sampleFormat);
     } else {
         if (!supportedSampleFormats.empty())
-            preferredFormat.setSampleFormat(supportedSampleFormats.front());
+            preferredFormat.setSampleFormat(QAudioFormat::Float);
         else
             qWarning() << "No sample format supported found for device" << nodeName();
     }

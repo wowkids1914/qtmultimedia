@@ -83,6 +83,8 @@ QWASAPIAudioSourceStream::~QWASAPIAudioSourceStream() = default;
 bool QWASAPIAudioSourceStream::start(QIODevice *ioDevice)
 {
     auto immDevice = QAudioDevicePrivate::handle<QWindowsAudioDevice>(m_audioDevice)->open();
+    if (!immDevice)
+        return false;
 
     bool clientOpen = openAudioClient(std::move(immDevice));
     if (!clientOpen)
@@ -101,6 +103,8 @@ bool QWASAPIAudioSourceStream::start(QIODevice *ioDevice)
 QIODevice *QWASAPIAudioSourceStream::start()
 {
     auto immDevice = QAudioDevicePrivate::handle<QWindowsAudioDevice>(m_audioDevice)->open();
+    if (!immDevice)
+        return nullptr;
 
     bool clientOpen = openAudioClient(std::move(immDevice));
     if (!clientOpen)
@@ -123,6 +127,8 @@ QIODevice *QWASAPIAudioSourceStream::start()
 bool QWASAPIAudioSourceStream::start(AudioCallback &&cb)
 {
     auto immDevice = QAudioDevicePrivate::handle<QWindowsAudioDevice>(m_audioDevice)->open();
+    if (!immDevice)
+        return false;
 
     bool clientOpen = openAudioClient(std::move(immDevice));
     if (!clientOpen)
@@ -152,9 +158,9 @@ void QWASAPIAudioSourceStream::stop(ShutdownPolicy shutdownPolicy)
 
     requestStop();
     disconnectQIODeviceConnections();
-
     QWindowsAudioUtils::audioClientStop(m_audioClient);
-    m_workerThread->wait();
+
+    joinWorkerThread();
     QWindowsAudioUtils::audioClientReset(m_audioClient);
 
     finalizeQIODevice(shutdownPolicy);
@@ -214,7 +220,13 @@ bool QWASAPIAudioSourceStream::startAudioClient()
     m_workerThread->setObjectName(u"QWASAPIAudioSourceStream");
     m_workerThread->start();
 
-    return audioClientStart(m_audioClient);
+    bool clientStarted = audioClientStart(m_audioClient);
+    if (!clientStarted) {
+        joinWorkerThread();
+        return false;
+    }
+
+    return true;
 }
 
 void QWASAPIAudioSourceStream::runProcessLoop()
@@ -314,6 +326,14 @@ void QWASAPIAudioSourceStream::handleAudioClientError()
     invokeOnAppThread([this] {
         handleIOError(m_parent);
     });
+}
+
+void QWASAPIAudioSourceStream::joinWorkerThread()
+{
+    requestStop();
+    ::SetEvent(m_wasapiHandle.get()); // force wakeup
+    m_workerThread->wait();
+    m_workerThread = {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

@@ -128,14 +128,14 @@ void QVideoWindowPrivate::initRhi()
     }
 #endif
 
-// #if QT_CONFIG(vulkan)
-//     if (m_graphicsApi == QRhi::Vulkan) {
-//         QRhiVulkanInitParams params;
-//         params.inst = q->vulkanInstance();
-//         params.window = q;
-//         m_rhi.reset(QRhi::create(QRhi::Vulkan, &params, rhiFlags));
-//     }
-// #endif
+#if QT_CONFIG(vulkan)
+    if (m_graphicsApi == QRhi::Vulkan) {
+        QRhiVulkanInitParams params;
+        params.inst = q->vulkanInstance();
+        params.window = q;
+        m_rhi.reset(QRhi::create(QRhi::Vulkan, &params, rhiFlags));
+    }
+#endif
 
 #ifdef Q_OS_WIN
     if (m_graphicsApi == QRhi::D3D11) {

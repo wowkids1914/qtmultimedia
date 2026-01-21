@@ -91,6 +91,7 @@ FocusScope {
         }
     }
 
+    //! [0]
     ZoomControl {
         x : 0
         y : 0
@@ -103,6 +104,7 @@ FocusScope {
         minimumZoom: captureControls.captureSession.camera.minimumZoomFactor
         onZoomTo: (target) => captureControls.captureSession.camera.zoomFactor = target
     }
+    //! [0]
 
     FlashControl {
         id: flashControl
@@ -110,7 +112,7 @@ FocusScope {
         y : captureControls.state === "MobilePortrait" ?
                 parent.height - (buttonPaneShadow.height + height) : parent.height - height
 
-        cameraDevice: captureControls.captureSession.camera
+        camera: captureControls.captureSession.camera
     }
 
     states: [

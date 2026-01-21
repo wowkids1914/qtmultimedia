@@ -52,6 +52,8 @@ qhp.QtMultimedia.subprojects.manual.title = Qt Multimedia
 qhp.QtMultimedia.subprojects.manual.indexTitle = Qt Multimedia module topics
 qhp.QtMultimedia.subprojects.manual.type = manual
 
+tagfile = qtmultimedia.tags
+
 exampledirs += ../../../examples/multimedia \
                ../../../examples/multimediawidgets \
                snippets \
@@ -90,6 +92,6 @@ manifestmeta.highlighted.names += "QtMultimedia/QML Camera Application"
 # Fail the documentation build if there are more warnings than the limit
 warninglimit = 0
 
-macro.ffmpegversion = "7.1.1"
+macro.ffmpegversion = "7.1.2"
 macro.ffmpegreponame = "ffmpeg"
 macro.androidndkversion = "26.1.10909125"
