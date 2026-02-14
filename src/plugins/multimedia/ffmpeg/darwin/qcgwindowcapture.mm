@@ -102,35 +102,37 @@ protected:
         if (auto rate = frameRateForWindow(m_wid))
             setFrameRate(*rate);
 
-        QCFType<CGImageRef> imageRef =
-                CGWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow, m_wid,
-                                        kCGWindowImageBoundsIgnoreFraming);
-        if (!imageRef) {
-            updateError(QPlatformSurfaceCapture::CaptureFailed,
-                        QLatin1String("Cannot create image by window"));
-            return {};
-        }
+        return {};
 
-        if (CGImageGetBitsPerPixel(imageRef) != 32
-            || CGImageGetPixelFormatInfo(imageRef) != kCGImagePixelFormatPacked
-            || CGImageGetByteOrderInfo(imageRef) != kCGImageByteOrder32Little) {
-            qWarning() << "Unexpected image format. PixelFormatInfo:"
-                       << CGImageGetPixelFormatInfo(imageRef)
-                       << "BitsPerPixel:" << CGImageGetBitsPerPixel(imageRef) << "AlphaInfo"
-                       << CGImageGetAlphaInfo(imageRef)
-                       << "ByteOrderInfo:" << CGImageGetByteOrderInfo(imageRef);
+        // QCFType<CGImageRef> imageRef =
+        //         CGWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow, m_wid,
+        //                                 kCGWindowImageBoundsIgnoreFraming);
+        // if (!imageRef) {
+        //     updateError(QPlatformSurfaceCapture::CaptureFailed,
+        //                 QLatin1String("Cannot create image by window"));
+        //     return {};
+        // }
 
-            updateError(QPlatformSurfaceCapture::CapturingNotSupported,
-                        QLatin1String("Not supported pixel format"));
-            return {};
-        }
+        // if (CGImageGetBitsPerPixel(imageRef) != 32
+        //     || CGImageGetPixelFormatInfo(imageRef) != kCGImagePixelFormatPacked
+        //     || CGImageGetByteOrderInfo(imageRef) != kCGImageByteOrder32Little) {
+        //     qWarning() << "Unexpected image format. PixelFormatInfo:"
+        //                << CGImageGetPixelFormatInfo(imageRef)
+        //                << "BitsPerPixel:" << CGImageGetBitsPerPixel(imageRef) << "AlphaInfo"
+        //                << CGImageGetAlphaInfo(imageRef)
+        //                << "ByteOrderInfo:" << CGImageGetByteOrderInfo(imageRef);
 
-        QVideoFrameFormat format(QSize(CGImageGetWidth(imageRef), CGImageGetHeight(imageRef)),
-                                 QVideoFrameFormat::Format_BGRA8888);
-        format.setStreamFrameRate(frameRate());
+        //     updateError(QPlatformSurfaceCapture::CapturingNotSupported,
+        //                 QLatin1String("Not supported pixel format"));
+        //     return {};
+        // }
 
-        return QVideoFramePrivate::createFrame(std::make_unique<QCGImageVideoBuffer>(imageRef),
-                                               std::move(format));
+        // QVideoFrameFormat format(QSize(CGImageGetWidth(imageRef), CGImageGetHeight(imageRef)),
+        //                          QVideoFrameFormat::Format_BGRA8888);
+        // format.setStreamFrameRate(frameRate());
+
+        // return QVideoFramePrivate::createFrame(std::make_unique<QCGImageVideoBuffer>(imageRef),
+        //                                        std::move(format));
     }
 
     void onNewFrame(QVideoFrame frame)
