@@ -87,11 +87,7 @@ bool QWASAPIAudioSinkStream::start(QIODevice *ioDevice)
     createQIODeviceConnections(ioDevice);
     pullFromQIODevice();
 
-    bool started = startAudioClient(StreamType::Ringbuffer);
-    if (!started)
-        return false;
-
-    return true;
+    return startAudioClient(StreamType::Ringbuffer);
 }
 
 QIODevice *QWASAPIAudioSinkStream::start()
@@ -112,10 +108,7 @@ QIODevice *QWASAPIAudioSinkStream::start()
     createQIODeviceConnections(ioDevice);
 
     bool started = startAudioClient(StreamType::Ringbuffer);
-    if (!started)
-        return nullptr;
-
-    return ioDevice;
+    return started ? ioDevice : nullptr;
 }
 
 bool QWASAPIAudioSinkStream::start(AudioCallback audioCallback)
@@ -152,9 +145,9 @@ void QWASAPIAudioSinkStream::stop(ShutdownPolicy shutdownPolicy)
     m_parent = nullptr;
     m_shutdownPolicy = shutdownPolicy;
 
+    requestStop();
     switch (shutdownPolicy) {
     case ShutdownPolicy::DiscardRingbuffer: {
-        requestStop();
         audioClientStop(m_audioClient);
         joinWorkerThread();
         audioClientReset(m_audioClient);
@@ -399,6 +392,7 @@ void QWASAPIAudioSinkStream::joinWorkerThread()
 void QWASAPIAudioSinkStream::handleAudioClientError()
 {
     using namespace QWindowsAudioUtils;
+    requestStop();
     audioClientStop(m_audioClient);
     audioClientReset(m_audioClient);
 

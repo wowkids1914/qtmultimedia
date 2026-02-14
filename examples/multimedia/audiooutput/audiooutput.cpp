@@ -133,6 +133,7 @@ AudioTest::AudioTest() : m_devices(new QMediaDevices(this)), m_pushTimer(new QTi
 AudioTest::~AudioTest()
 {
     m_pushTimer->stop();
+    cleanupAudioSink();
 }
 
 void AudioTest::initializeWindow()
@@ -151,9 +152,15 @@ void AudioTest::initializeWindow()
     connect(m_devices, &QMediaDevices::audioOutputsChanged, this, &AudioTest::updateAudioDevices);
     layout->addWidget(m_deviceBox);
 
-    m_modeButton = new QPushButton(this);
-    connect(m_modeButton, &QPushButton::clicked, this, &AudioTest::toggleMode);
-    layout->addWidget(m_modeButton);
+    m_modeBox = new QComboBox(this);
+    m_modeBox->addItem(tr("Pull Mode"));
+    m_modeBox->addItem(tr("Push Mode"));
+    connect(m_modeBox, &QComboBox::currentIndexChanged, this, [this](int index) {
+        m_mode = AudioTestMode{ index };
+        restartAudioStream();
+    });
+    layout->addWidget(m_modeBox);
+    m_modeBox->setCurrentIndex(qToUnderlying(m_mode));
 
     m_suspendResumeButton = new QPushButton(this);
     connect(m_suspendResumeButton, &QPushButton::clicked, this, &AudioTest::toggleSuspendResume);
@@ -228,14 +235,6 @@ void AudioTest::initializeWindow()
 
     setCentralWidget(window);
     window->show();
-
-    connect(this, &AudioTest::pullModeChanged, this, [&] {
-        if (m_pullMode)
-            m_modeButton->setText(tr("Enable push mode"));
-        else
-            m_modeButton->setText(tr("Enable pull mode"));
-    });
-    emit pullModeChanged();
 }
 
 void AudioTest::initializeAudio(const QAudioDevice &deviceInfo)
@@ -247,18 +246,17 @@ void AudioTest::initializeAudio(const QAudioDevice &deviceInfo)
 void AudioTest::applyAudioFormat(const QAudioDevice &deviceInfo, const QAudioFormat &format)
 {
     // keep previous format to roll back if changing the audio format fails
-    QAudioFormat prevFmt;
+    const QAudioFormat prevFmt = m_audioSink ? m_audioSink->format() : deviceInfo.preferredFormat();
 
     if (m_audioSink)
-        prevFmt = m_audioSink->format();
-    else
-        prevFmt = deviceInfo.preferredFormat();
+        m_audioSink->disconnect(this);
 
     // rebuild generator and sink with the requested format
     const int durationSeconds = 1;
     const int toneSampleRateHz = 600;
-    m_generator.reset(new Generator(format, durationSeconds * 1000000, toneSampleRateHz));
-    m_audioSink.reset(new QAudioSink(deviceInfo, format));
+    m_generator = std::make_unique<Generator>(format, durationSeconds * 1000000, toneSampleRateHz);
+    m_audioSink = std::make_unique<QAudioSink>(deviceInfo, format);
+    m_audioSink->setVolume(0.25f); // roughly -12dB
 
     m_generator->start();
 
@@ -308,9 +306,7 @@ void AudioTest::applyAudioFormat(const QAudioDevice &deviceInfo, const QAudioFor
 
 void AudioTest::deviceChanged(int index)
 {
-    m_generator->stop();
-    m_audioSink->stop();
-    m_audioSink->disconnect(this);
+    cleanupAudioSink();
 
     QAudioDevice dev = m_deviceBox->itemData(index).value<QAudioDevice>();
 
@@ -362,13 +358,7 @@ void AudioTest::updateAudioDevices()
         m_deviceBox->addItem(deviceInfo.description(), QVariant::fromValue(deviceInfo));
 }
 
-void AudioTest::toggleMode()
-{
-    m_pullMode = !m_pullMode;
-    emit pullModeChanged();
 
-    restartAudioStream();
-}
 
 void AudioTest::restartAudioStream()
 {
@@ -381,10 +371,12 @@ void AudioTest::restartAudioStream()
                                                 QAudio::LogarithmicVolumeScale);
     m_volumeSlider->setValue(qRound(initialVolume * 100));
 
-    if (m_pullMode) {
-        // pull mode: QAudioSink pulls from Generator as needed
+    switch (m_mode) {
+    case AudioTestMode::Pull: {
         m_audioSink->start(m_generator.get());
-    } else {
+        break;
+    }
+    case AudioTestMode::Push: {
         // push mode: periodically push to QAudioSink using a timer
         auto io = m_audioSink->start();
         m_pushTimer->disconnect();
@@ -401,6 +393,10 @@ void AudioTest::restartAudioStream()
         });
 
         m_pushTimer->start(10);
+        break;
+    }
+    default:
+        Q_UNREACHABLE();
     }
 }
 
@@ -417,6 +413,16 @@ void AudioTest::toggleSuspendResume()
     default:
         return;
     }
+}
+
+void AudioTest::cleanupAudioSink()
+{
+    if (m_audioSink) {
+        m_audioSink->stop();
+        m_audioSink->disconnect(this);
+    }
+    m_audioSink.reset();
+    m_generator.reset();
 }
 
 #include "moc_audiooutput.cpp"

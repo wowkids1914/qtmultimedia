@@ -93,11 +93,7 @@ bool QWASAPIAudioSourceStream::start(QIODevice *ioDevice)
     setQIODevice(ioDevice);
     createQIODeviceConnections(ioDevice);
 
-    bool started = startAudioClient();
-    if (!started)
-        return false;
-
-    return true;
+    return startAudioClient();
 }
 
 QIODevice *QWASAPIAudioSourceStream::start()
@@ -118,10 +114,7 @@ QIODevice *QWASAPIAudioSourceStream::start()
     createQIODeviceConnections(ioDevice);
 
     bool started = startAudioClient();
-    if (!started)
-        return nullptr;
-
-    return ioDevice;
+    return started ? ioDevice : nullptr;
 }
 
 bool QWASAPIAudioSourceStream::start(AudioCallback &&cb)

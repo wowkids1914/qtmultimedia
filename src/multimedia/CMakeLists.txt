@@ -118,6 +118,8 @@ qt_internal_add_module(Multimedia
         playback
         recording
         video
+    PRECOMPILED_HEADER
+        qtmultimedia_pch_p.h
     DEFINES
         QT_NO_CAST_FROM_ASCII
         QT_NO_CAST_TO_ASCII
@@ -318,6 +320,13 @@ qt_internal_extend_target(Multimedia CONDITION APPLE
         ${FWCoreVideo}
 )
 
+# we use blocks in qdarwinaudiodevices.mm, so we need to enable ARC
+set_source_files_properties(darwin/qdarwinaudiodevices.mm
+    PROPERTIES
+        COMPILE_FLAGS "-fobjc-arc"
+        SKIP_PRECOMPILE_HEADERS TRUE
+)
+
 qt_internal_extend_target(Multimedia CONDITION MACOS OR IOS
     SOURCES
         darwin/qdarwinintegrationfactory_p.h darwin/qdarwinintegrationfactory.mm
@@ -397,7 +406,10 @@ if(MINGW)
     list(APPEND source_with_init_guid windows/qwindowsaudiodevices.cpp)
 endif()
 
-set_source_files_properties(${source_with_init_guid} PROPERTIES COMPILE_DEFINITIONS INITGUID)
+set_source_files_properties(${source_with_init_guid} PROPERTIES
+    COMPILE_DEFINITIONS     INITGUID
+    SKIP_PRECOMPILE_HEADERS TRUE
+)
 
 
 qt_internal_extend_target(Multimedia CONDITION WASM

@@ -16,12 +16,13 @@
 //
 
 #include <private/qplatformaudiodevices_p.h>
-#include <qelapsedtimer.h>
-#include <qcameradevice.h>
+#ifdef Q_OS_MACOS
+#  include <CoreAudio/AudioHardwareBase.h>
+#  include <QtCore/qfuture.h>
+#  include <optional>
+#endif
 
 QT_BEGIN_NAMESPACE
-
-class QCameraDevice;
 
 class QDarwinAudioDevices : public QPlatformAudioDevices
 {
@@ -39,10 +40,27 @@ public:
 
     QLatin1String backendName() const override { return QLatin1String{ "CoreAudio" }; }
 
-protected:
+private:
     QList<QAudioDevice> findAudioInputs() const override;
     QList<QAudioDevice> findAudioOutputs() const override;
 };
+
+namespace QCoreAudioUtils {
+
+#ifdef Q_OS_MACOS
+class DeviceDisconnectMonitor
+{
+public:
+    ~DeviceDisconnectMonitor();
+    std::optional<QFuture<void>> addDisconnectListener(AudioObjectID);
+    void removeDisconnectListener();
+
+private:
+    std::function<void()> m_disconnectFunction;
+};
+#endif
+
+} // namespace QCoreAudioUtils
 
 QT_END_NAMESPACE
 

@@ -89,6 +89,9 @@ private slots:
     void invalidFormat();
     void nullFormat();
 
+    void start_withSupportedSampleFormats_data();
+    void start_withSupportedSampleFormats();
+
     void bufferSize_data();
     void bufferSize();
     void bufferSize_getValidDefault();
@@ -96,6 +99,7 @@ private slots:
     void bufferSize_updatedAfterStart();
 
     void stopWhileStopped();
+    void stopWhileSuspended();
     void suspendWhileStopped();
     void resumeWhileStopped();
 
@@ -419,6 +423,38 @@ void tst_QAudioSink::nullFormat()
     }
 }
 
+void tst_QAudioSink::start_withSupportedSampleFormats_data()
+{
+    QTest::addColumn<QAudioFormat::SampleFormat>("sampleFormat");
+    for (auto sampleFormat : audioDevice.supportedSampleFormats()) {
+        QTest::newRow(QStringLiteral("Sample format: %1").arg(sampleFormat).toUtf8().constData())
+                      << sampleFormat;
+    }
+}
+
+void tst_QAudioSink::start_withSupportedSampleFormats()
+{
+    // Arrange
+    AudioPullSource source(true);
+    source.open(QIODevice::ReadOnly);
+
+    QFETCH(QAudioFormat::SampleFormat, sampleFormat);
+    QAudioFormat format = audioDevice.preferredFormat();
+    format.setSampleFormat(sampleFormat);
+    QAudioSink sink(audioDevice, format);
+
+    QSignalSpy stateSignal(&sink, &QAudioSink::stateChanged);
+
+    // Act
+    sink.start(&source);
+
+    // Assert
+    QTRY_COMPARE(stateSignal.count(), 1);
+    QCOMPARE(sink.state(), QAudio::ActiveState);
+    QCOMPARE(sink.error(), QAudio::NoError);
+    QTRY_COMPARE_GT(sink.processedUSecs(), 0);
+}
+
 void tst_QAudioSink::bufferSize_data()
 {
     QTest::addColumn<int>("bufferSize");
@@ -504,6 +540,22 @@ void tst_QAudioSink::stopWhileStopped()
     QVERIFY2((stateSignal.size() == 0), "stop() while stopped is emitting a signal and it shouldn't");
     QVERIFY2((audioSink.error() == QAudio::NoError),
              "error() was not set to QAudio::NoError after stop()");
+}
+
+void tst_QAudioSink::stopWhileSuspended()
+{
+    using namespace std::chrono_literals;
+
+    QAudioSink audioSink(audioDevice.preferredFormat(), this);
+    audioSink.start();
+    QTest::qWait(10ms); // give WASAPI worker thread a bit of time to arrive at WaitForSingleObject
+
+    audioSink.suspend();
+    QTRY_COMPARE_EQ(audioSink.state(), QAudio::SuspendedState);
+    QTest::qWait(10ms); // give WASAPI worker thread a bit of time to arrive at WaitForSingleObject
+
+    audioSink.stop();
+    QTRY_COMPARE_EQ(audioSink.state(), QAudio::StoppedState);
 }
 
 void tst_QAudioSink::suspendWhileStopped()

@@ -49,6 +49,7 @@
 QT_USE_NAMESPACE
 
 using namespace Qt::Literals;
+using namespace std::chrono_literals;
 
 namespace {
 qreal colorDifference(QRgb first, QRgb second)
@@ -256,6 +257,9 @@ private slots:
     void stressTest_setupAndTeardown_keepAudioOutput_data();
     void stressTest_setupAndTeardown_keepVideoOutput();
     void stressTest_setupAndTeardown_keepVideoOutput_data();
+
+    void destruction_doesNotDeadlock_afterMediaPlayerCall();
+    void destruction_doesNotDeadlock_afterMediaPlayerCall_data();
 
 private:
     QUrl selectVideoFile(const QStringList &mediaCandidates);
@@ -566,7 +570,7 @@ void tst_QMediaPlayerBackend::setSource_emitsSourceChanged_whenCalledWithInvalid
 {
     QFETCH(QUrl, invalidMedia);
     m_fixture->player.setSource(invalidMedia);
-    QTRY_COMPARE_EQ(m_fixture->player.error(), QMediaPlayer::ResourceError);
+    QTRY_COMPARE_EQ_WITH_TIMEOUT(m_fixture->player.error(), QMediaPlayer::ResourceError, 10s);
 
     QCOMPARE_EQ(m_fixture->sourceChanged, SignalList({ { invalidMedia } }));
 }
@@ -580,7 +584,7 @@ void tst_QMediaPlayerBackend::setSource_emitsError_whenCalledWithInvalidMedia()
 {
     QFETCH(QUrl, invalidMedia);
     m_fixture->player.setSource(invalidMedia);
-    QTRY_COMPARE_EQ(m_fixture->player.error(), QMediaPlayer::ResourceError);
+    QTRY_COMPARE_EQ_WITH_TIMEOUT(m_fixture->player.error(), QMediaPlayer::ResourceError, 10s);
 
     QCOMPARE_EQ(m_fixture->errorOccurred[0][0], QMediaPlayer::ResourceError);
 }
@@ -597,7 +601,7 @@ void tst_QMediaPlayerBackend::setSource_emitsMediaStatusChange_whenCalledWithInv
         QSKIP_FFMPEG("FFmpeg: Doesn`t emit QMediaPlayer::LoadingMedia...");
 
     m_fixture->player.setSource(invalidMedia);
-    QTRY_COMPARE_EQ(m_fixture->player.error(), QMediaPlayer::ResourceError);
+    QTRY_COMPARE_EQ_WITH_TIMEOUT(m_fixture->player.error(), QMediaPlayer::ResourceError, 10s);
 
     QCOMPARE_EQ(m_fixture->mediaStatusChanged,
                 SignalList({ { QMediaPlayer::LoadingMedia }, { QMediaPlayer::InvalidMedia } }));
@@ -612,7 +616,7 @@ void tst_QMediaPlayerBackend::setSource_doesNotEmitPlaybackStateChange_whenCalle
 {
     QFETCH(QUrl, invalidMedia);
     m_fixture->player.setSource(invalidMedia);
-    QTRY_COMPARE_EQ(m_fixture->player.error(), QMediaPlayer::ResourceError);
+    QTRY_COMPARE_EQ_WITH_TIMEOUT(m_fixture->player.error(), QMediaPlayer::ResourceError, 10s);
 
     QVERIFY(m_fixture->playbackStateChanged.empty());
 }
@@ -627,7 +631,7 @@ void tst_QMediaPlayerBackend::setSource_setsSourceMediaStatusAndError_whenCalled
     QFETCH(QUrl, invalidMedia);
 
     m_fixture->player.setSource(invalidMedia);
-    QTRY_COMPARE_EQ(m_fixture->player.error(), QMediaPlayer::ResourceError);
+    QTRY_COMPARE_EQ_WITH_TIMEOUT(m_fixture->player.error(), QMediaPlayer::ResourceError, 10s);
 
     MediaPlayerState expectedState = MediaPlayerState::defaultState();
     expectedState.source = invalidMedia;
@@ -1747,6 +1751,7 @@ void tst_QMediaPlayerBackend::play_playbackLastsForTheExpectedTime()
                 "QTBUG-133652: if we pause before play, setLoops may not be applied correctly");
 
     QMediaPlayer &player = m_fixture->player;
+    QSignalSpy mediaStatusSpy(&player, &QMediaPlayer::mediaStatusChanged);
 
     player.setSource(media);
 
@@ -1777,6 +1782,7 @@ void tst_QMediaPlayerBackend::play_playbackLastsForTheExpectedTime()
                                 .arg(round<milliseconds>(duration).count())));
 
     QCOMPARE_EQ(player.mediaStatus(), QMediaPlayer::EndOfMedia);
+    QVERIFY(mediaStatusSpy.contains(QList{ QVariant::fromValue(QMediaPlayer::EndOfMedia) }));
 }
 
 void tst_QMediaPlayerBackend::play_playbackLastsForTheExpectedTime_data()
@@ -4780,6 +4786,78 @@ void tst_QMediaPlayerBackend::stressTest_setupAndTeardown_keepVideoOutput()
 void tst_QMediaPlayerBackend::stressTest_setupAndTeardown_keepVideoOutput_data()
 {
     makeStressTestCases();
+}
+
+enum DestructionOrder { AVM, AMV, MAV, MVA, VMA, VAM };
+enum MediaPlayerCall { Pause, Stop, SetSource, None };
+
+void tst_QMediaPlayerBackend::destruction_doesNotDeadlock_afterMediaPlayerCall()
+{
+    QSKIP_GSTREAMER("QTBUG-140805: Triggers a deadlock between gstPlay thread and Qt main thread");
+
+    QFETCH(DestructionOrder, destructionOrder);
+    QFETCH(MediaPlayerCall, mediaPlayerCall);
+
+    // setup
+    auto mediaPlayer = std::make_unique<QMediaPlayer>();
+    auto audioOutput = std::make_unique<QAudioOutput>();
+    auto videoSink = std::make_unique<QVideoSink>();
+    mediaPlayer->setVideoSink(videoSink.get());
+    mediaPlayer->setAudioOutput(audioOutput.get());
+    mediaPlayer->setSource(*m_localVideoFile);
+    mediaPlayer->play();
+    QTRY_COMPARE_GT(mediaPlayer->position(), 0);
+
+    // act
+    switch (mediaPlayerCall) {
+    case MediaPlayerCall::Pause: mediaPlayer->pause(); break;
+    case MediaPlayerCall::Stop: mediaPlayer->stop(); break;
+    case MediaPlayerCall::SetSource: mediaPlayer->setSource(QUrl()); break;
+    case MediaPlayerCall::None: break;
+    }
+
+    switch (destructionOrder) {
+    // Usually doesn`t crash
+    case DestructionOrder::AVM: audioOutput.reset(); videoSink.reset(); mediaPlayer.reset(); break;
+    // Usually doesn¨t crash
+    case DestructionOrder::AMV: audioOutput.reset(); mediaPlayer.reset(); videoSink.reset(); break;
+    // Crash: ~QGstreamerMediaPlayer() -> m_playbin.setStateSync(GST_STATE_NULL);
+    case DestructionOrder::MAV: mediaPlayer.reset(); audioOutput.reset(); videoSink.reset(); break;
+    // Crash: ~QGstreamerMediaPlayer() -> m_playbin.setStateSync(GST_STATE_NULL);
+    case DestructionOrder::MVA: mediaPlayer.reset(); videoSink.reset(); audioOutput.reset(); break;
+    // Crash: ~QMediaPlayer() -> setAudioOutput -> m_playbin.set("audio-sink"...
+    case DestructionOrder::VMA: videoSink.reset(); mediaPlayer.reset(); audioOutput.reset(); break;
+    // Crash: ~QAudioOutput() -> setAudioOutput -> m_playbin.set("audio-sink"...
+    case DestructionOrder::VAM: videoSink.reset(); audioOutput.reset(); mediaPlayer.reset(); break;
+    }
+}
+
+void tst_QMediaPlayerBackend::destruction_doesNotDeadlock_afterMediaPlayerCall_data()
+{
+    QTest::addColumn<DestructionOrder>("destructionOrder");
+    QTest::addColumn<MediaPlayerCall>("mediaPlayerCall");
+
+    static const std::pair<const char *, DestructionOrder> destructionOrders[] = {
+        {"AVM", DestructionOrder::AVM},
+        {"AMV", DestructionOrder::AMV},
+        {"MAV", DestructionOrder::MAV},
+        {"MVA", DestructionOrder::MVA},
+        {"VMA", DestructionOrder::VMA},
+        {"VAM", DestructionOrder::VAM},
+        };
+
+    static const std::pair<const char *, MediaPlayerCall> call[] = {
+        {"none",      MediaPlayerCall::None},
+        {"pause",     MediaPlayerCall::Pause},
+        {"stop",      MediaPlayerCall::Stop},
+        {"setSource", MediaPlayerCall::SetSource},
+        };
+
+    for (auto &[orderName, order] : destructionOrders) {
+        for (auto &[callName, call] : call) {
+            QTest::addRow("destructionOrder%s_%s", orderName, callName) << order << call;
+        }
+    }
 }
 
 QTEST_MAIN(tst_QMediaPlayerBackend)

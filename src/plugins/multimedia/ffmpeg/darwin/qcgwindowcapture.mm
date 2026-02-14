@@ -15,6 +15,8 @@
 #include <QtMultimedia/private/qcapturablewindow_p.h>
 #include <QtMultimedia/private/qvideoframe_p.h>
 
+#include <QtCore/private/qcore_mac_p.h>
+
 #include <ApplicationServices/ApplicationServices.h>
 #include <IOKit/graphics/IOGraphicsLib.h>
 
@@ -51,8 +53,6 @@ public:
         m_bytesPerLine = CGImageGetBytesPerRow(image);
     }
 
-    ~QCGImageVideoBuffer() override { CFRelease(m_data); }
-
     MapData map(QVideoFrame::MapMode /*mode*/) override
     {
         MapData mapData;
@@ -68,7 +68,7 @@ public:
     QVideoFrameFormat format() const override { return {}; }
 
 private:
-    CFDataRef m_data;
+    QCFType<CFDataRef> m_data;
     size_t m_bytesPerLine = 0;
 };
 
@@ -102,38 +102,35 @@ protected:
         if (auto rate = frameRateForWindow(m_wid))
             setFrameRate(*rate);
 
-        return {};
+        QCFType<CGImageRef> imageRef =
+                CGWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow, m_wid,
+                                        kCGWindowImageBoundsIgnoreFraming);
+        if (!imageRef) {
+            updateError(QPlatformSurfaceCapture::CaptureFailed,
+                        QLatin1String("Cannot create image by window"));
+            return {};
+        }
 
-        // auto imageRef = CGWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow,
-        //                                         m_wid, kCGWindowImageBoundsIgnoreFraming);
-        // if (!imageRef) {
-        //     updateError(QPlatformSurfaceCapture::CaptureFailed,
-        //                 QLatin1String("Cannot create image by window"));
-        //     return {};
-        // }
+        if (CGImageGetBitsPerPixel(imageRef) != 32
+            || CGImageGetPixelFormatInfo(imageRef) != kCGImagePixelFormatPacked
+            || CGImageGetByteOrderInfo(imageRef) != kCGImageByteOrder32Little) {
+            qWarning() << "Unexpected image format. PixelFormatInfo:"
+                       << CGImageGetPixelFormatInfo(imageRef)
+                       << "BitsPerPixel:" << CGImageGetBitsPerPixel(imageRef) << "AlphaInfo"
+                       << CGImageGetAlphaInfo(imageRef)
+                       << "ByteOrderInfo:" << CGImageGetByteOrderInfo(imageRef);
 
-        // auto imageDeleter = qScopeGuard([imageRef]() { CGImageRelease(imageRef); });
+            updateError(QPlatformSurfaceCapture::CapturingNotSupported,
+                        QLatin1String("Not supported pixel format"));
+            return {};
+        }
 
-        // if (CGImageGetBitsPerPixel(imageRef) != 32
-        //     || CGImageGetPixelFormatInfo(imageRef) != kCGImagePixelFormatPacked
-        //     || CGImageGetByteOrderInfo(imageRef) != kCGImageByteOrder32Little) {
-        //     qWarning() << "Unexpected image format. PixelFormatInfo:"
-        //                << CGImageGetPixelFormatInfo(imageRef)
-        //                << "BitsPerPixel:" << CGImageGetBitsPerPixel(imageRef) << "AlphaInfo"
-        //                << CGImageGetAlphaInfo(imageRef)
-        //                << "ByteOrderInfo:" << CGImageGetByteOrderInfo(imageRef);
+        QVideoFrameFormat format(QSize(CGImageGetWidth(imageRef), CGImageGetHeight(imageRef)),
+                                 QVideoFrameFormat::Format_BGRA8888);
+        format.setStreamFrameRate(frameRate());
 
-        //     updateError(QPlatformSurfaceCapture::CapturingNotSupported,
-        //                 QLatin1String("Not supported pixel format"));
-        //     return {};
-        // }
-
-        // QVideoFrameFormat format(QSize(CGImageGetWidth(imageRef), CGImageGetHeight(imageRef)),
-        //                          QVideoFrameFormat::Format_BGRA8888);
-        // format.setStreamFrameRate(frameRate());
-
-        // return QVideoFramePrivate::createFrame(std::make_unique<QCGImageVideoBuffer>(imageRef),
-        //                                        std::move(format));
+        return QVideoFramePrivate::createFrame(std::make_unique<QCGImageVideoBuffer>(imageRef),
+                                               std::move(format));
     }
 
     void onNewFrame(QVideoFrame frame)
