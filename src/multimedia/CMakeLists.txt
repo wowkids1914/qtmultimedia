@@ -164,11 +164,15 @@ qt_internal_extend_target(Multimedia
 qt_internal_add_simd_part(Multimedia SIMD sse2
     SOURCES
         video/qvideoframeconversionhelper_sse2.cpp
+    EXCLUDE_OSX_ARCHITECTURES
+        arm64
 )
 
 qt_internal_add_simd_part(Multimedia SIMD ssse3
     SOURCES
         video/qvideoframeconversionhelper_ssse3.cpp
+    EXCLUDE_OSX_ARCHITECTURES
+        arm64
 )
 
 qt_internal_add_simd_part(Multimedia SIMD arch_haswell
